@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Simple Screen Recorder</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bulma@0.8.0/css/bulma.min.css"
+    />
+    <link rel="stylesheet" href="index.css" />
+  </head>
+  <body class="content">
+    <h1>Electron Screen Recorder</h1>
+    <video id="videoElement"></video>
+    <button id="startBtn" class="button is-primary">Start</button>
+    <button id="stopBtn" class="button is-warning">Stop</button>
+    <hr />
+    <div class="dropdown is-hoverable">
+      <div id="videoSelectBtn" class="button is-text dropdown-trigger">
+        <span>Choose a Video Source</span>
+        <span class="icon is-small">
+          <i class="fas fa-angle-down" aria-hidden="true"></i>
+        </span>
+      </div>
+      <div class="dropdown-menu" id="videoSelectDropdown" role="menu">
+        <div class="dropdown-content">
+          <!-- Video sources will be dynamically added here -->
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const videoElement = document.getElementById('videoElement');
+      const videoSelectBtn = document.getElementById('videoSelectBtn');
+      const videoSelectDropdown = document.getElementById('videoSelectDropdown');
+      let mediaRecorder;
+      const recordedChunks = [];
+
+      async function selectSource(source) {
+        videoSelectBtn.innerText = source.name;
+
+        const constraints = {
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: source.id,
+            },
+          },
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        videoElement.srcObject = stream;
+        videoElement.play();
+
+        const options = { mimeType: 'video/webm' };
+        mediaRecorder = new MediaRecorder(stream, options);
+
+        mediaRecorder.ondataavailable = handleDataAvailable;
+        mediaRecorder.onstop = handleStop;
+      }
+
+      startBtn.onclick = () => {
+        mediaRecorder.start();
+        startBtn.classList.add('is-danger');
+        startBtn.innerText = 'Recording';
+      };
+
+      stopBtn.onclick = () => {
+        mediaRecorder.stop();
+        startBtn.classList.remove('is-danger');
+        startBtn.innerText = 'Start';
+      };
+
+      function handleDataAvailable(e) {
+        recordedChunks.push(e.data);
+      }
+
+      async function handleStop(e) {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'video.webm';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        recordedChunks.length = 0;
+        console.log('Video saved successfully!');
+      }
+
+      function populateVideoSources(sources) {
+        const dropdownContent = document.querySelector(
+          '#videoSelectDropdown .dropdown-content'
+        );
+        dropdownContent.innerHTML = '';
+
+        sources.forEach((source) => {
+          const menuItem = document.createElement('a');
+          menuItem.className = 'dropdown-item';
+          menuItem.textContent = source.name;
+          menuItem.addEventListener('click', () => {
+            selectSource(source);
+          });
+          dropdownContent.appendChild(menuItem);
+        });
+      }
+
+      window.electronAPI
+        .getVideoSources()
+        .then((videoSources) => {
+          populateVideoSources(videoSources);
+        })
+        .catch((error) => {
+          console.error('Failed to get video sources:', error);
+        });
+    </script>
+  </body>
+</html>
